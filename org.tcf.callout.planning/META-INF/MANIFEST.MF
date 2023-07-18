@@ -1,0 +1,9 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: Planning
+Bundle-SymbolicName: org.tcf.callout.planning
+Bundle-Version: 1.0.0.qualifier
+Automatic-Module-Name: org.tcf.callout.planning
+Bundle-RequiredExecutionEnvironment: JavaSE-11
+Require-Bundle: org.adempiere.base;bundle-version="9.0.0",
+ org.adempiere.plugin.utils;bundle-version="9.0.0"
