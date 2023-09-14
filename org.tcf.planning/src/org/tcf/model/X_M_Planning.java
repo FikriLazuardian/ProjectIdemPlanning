@@ -35,7 +35,7 @@ public class X_M_Planning extends PO implements I_M_Planning, I_Persistent
 	/**
 	 *
 	 */
-	private static final long serialVersionUID = 20230717L;
+	private static final long serialVersionUID = 20230804L;
 
     /** Standard Constructor */
     public X_M_Planning (Properties ctx, int M_Planning_ID, String trxName)
@@ -43,6 +43,8 @@ public class X_M_Planning extends PO implements I_M_Planning, I_Persistent
       super (ctx, M_Planning_ID, trxName);
       /** if (M_Planning_ID == 0)
         {
+			setC_DocType_ID (0);
+// 0
 			setDocumentNo (null);
 			setIsCreated (null);
 // N
@@ -53,6 +55,7 @@ public class X_M_Planning extends PO implements I_M_Planning, I_Persistent
 			setM_Planning_ID (0);
 			setPosted (false);
 			setProcessed (false);
+// N
 			setProductionQty (Env.ZERO);
 // 0
         } */
@@ -64,6 +67,8 @@ public class X_M_Planning extends PO implements I_M_Planning, I_Persistent
       super (ctx, M_Planning_ID, trxName, virtualColumns);
       /** if (M_Planning_ID == 0)
         {
+			setC_DocType_ID (0);
+// 0
 			setDocumentNo (null);
 			setIsCreated (null);
 // N
@@ -74,6 +79,7 @@ public class X_M_Planning extends PO implements I_M_Planning, I_Persistent
 			setM_Planning_ID (0);
 			setPosted (false);
 			setProcessed (false);
+// N
 			setProductionQty (Env.ZERO);
 // 0
         } */
@@ -208,6 +214,62 @@ public class X_M_Planning extends PO implements I_M_Planning, I_Persistent
 	public int getC_Campaign_ID()
 	{
 		Integer ii = (Integer)get_Value(COLUMNNAME_C_Campaign_ID);
+		if (ii == null)
+			 return 0;
+		return ii.intValue();
+	}
+
+	public org.compiere.model.I_C_DocType getC_DocType() throws RuntimeException
+	{
+		return (org.compiere.model.I_C_DocType)MTable.get(getCtx(), org.compiere.model.I_C_DocType.Table_ID)
+			.getPO(getC_DocType_ID(), get_TrxName());
+	}
+
+	/** Set Document Type.
+		@param C_DocType_ID Document type or rules
+	*/
+	public void setC_DocType_ID (int C_DocType_ID)
+	{
+		if (C_DocType_ID < 0)
+			set_ValueNoCheck (COLUMNNAME_C_DocType_ID, null);
+		else
+			set_ValueNoCheck (COLUMNNAME_C_DocType_ID, Integer.valueOf(C_DocType_ID));
+	}
+
+	/** Get Document Type.
+		@return Document type or rules
+	  */
+	public int getC_DocType_ID()
+	{
+		Integer ii = (Integer)get_Value(COLUMNNAME_C_DocType_ID);
+		if (ii == null)
+			 return 0;
+		return ii.intValue();
+	}
+
+	public org.compiere.model.I_C_DocType getC_DocTypeTarget() throws RuntimeException
+	{
+		return (org.compiere.model.I_C_DocType)MTable.get(getCtx(), org.compiere.model.I_C_DocType.Table_ID)
+			.getPO(getC_DocTypeTarget_ID(), get_TrxName());
+	}
+
+	/** Set Target Document Type.
+		@param C_DocTypeTarget_ID Target document type for conversing documents
+	*/
+	public void setC_DocTypeTarget_ID (int C_DocTypeTarget_ID)
+	{
+		if (C_DocTypeTarget_ID < 1)
+			set_ValueNoCheck (COLUMNNAME_C_DocTypeTarget_ID, null);
+		else
+			set_ValueNoCheck (COLUMNNAME_C_DocTypeTarget_ID, Integer.valueOf(C_DocTypeTarget_ID));
+	}
+
+	/** Get Target Document Type.
+		@return Target document type for conversing documents
+	  */
+	public int getC_DocTypeTarget_ID()
+	{
+		Integer ii = (Integer)get_Value(COLUMNNAME_C_DocTypeTarget_ID);
 		if (ii == null)
 			 return 0;
 		return ii.intValue();
@@ -519,6 +581,29 @@ public class X_M_Planning extends PO implements I_M_Planning, I_Persistent
         return new KeyNamePair(get_ID(), getDocumentNo());
     }
 
+	/** Set Approved.
+		@param IsApproved Indicates if this document requires approval
+	*/
+	public void setIsApproved (boolean IsApproved)
+	{
+		set_ValueNoCheck (COLUMNNAME_IsApproved, Boolean.valueOf(IsApproved));
+	}
+
+	/** Get Approved.
+		@return Indicates if this document requires approval
+	  */
+	public boolean isApproved()
+	{
+		Object oo = get_Value(COLUMNNAME_IsApproved);
+		if (oo != null) 
+		{
+			 if (oo instanceof Boolean) 
+				 return ((Boolean)oo).booleanValue(); 
+			return "Y".equals(oo);
+		}
+		return false;
+	}
+
 	/** Set Complete.
 		@param IsComplete It is complete
 	*/
@@ -794,7 +879,7 @@ public class X_M_Planning extends PO implements I_M_Planning, I_Persistent
 	*/
 	public void setProcessed (boolean Processed)
 	{
-		set_Value (COLUMNNAME_Processed, Boolean.valueOf(Processed));
+		set_ValueNoCheck (COLUMNNAME_Processed, Boolean.valueOf(Processed));
 	}
 
 	/** Get Processed.

@@ -34,7 +34,7 @@ public class X_M_PlanningProduct extends PO implements I_M_PlanningProduct, I_Pe
 	/**
 	 *
 	 */
-	private static final long serialVersionUID = 20230717L;
+	private static final long serialVersionUID = 20230804L;
 
     /** Standard Constructor */
     public X_M_PlanningProduct (Properties ctx, int M_PlanningProduct_ID, String trxName)

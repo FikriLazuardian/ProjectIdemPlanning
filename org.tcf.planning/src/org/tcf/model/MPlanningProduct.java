@@ -12,8 +12,6 @@ import org.compiere.model.MClient;
 import org.compiere.model.MLocator;
 import org.compiere.model.MProduct;
 import org.compiere.model.MProductCategory;
-import org.compiere.model.MProduction;
-import org.compiere.model.MProductionLine;
 import org.compiere.model.MStorageOnHand;
 import org.compiere.util.AdempiereUserError;
 import org.compiere.util.DB;

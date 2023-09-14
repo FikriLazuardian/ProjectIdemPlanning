@@ -13,527 +13,191 @@ import java.util.logging.Level;
 
 import org.adempiere.exceptions.AdempiereException;
 import org.adempiere.exceptions.PeriodClosedException;
-import org.compiere.acct.Doc;
-import org.compiere.model.MAcctSchema;
+//import org.compiere.model.MAcctSchema;
 import org.compiere.model.MClient;
-import org.compiere.model.MDocType;
+//import org.compiere.model.MDocType;
 import org.compiere.model.MLocator;
-import org.compiere.model.MPeriod;
+import org.compiere.model.MOrderLine;
 import org.compiere.model.MProduct;
 import org.compiere.model.MProductCategory;
+import org.compiere.model.MProject;
+import org.compiere.model.MProjectLine;
 import org.compiere.model.MStorageOnHand;
-import org.compiere.model.MSysConfig;
+//import org.compiere.model.MSysConfig;
+import org.compiere.model.MWarehouse;
 import org.compiere.model.ModelValidationEngine;
 import org.compiere.model.ModelValidator;
 import org.compiere.model.PO;
 import org.compiere.model.Query;
 import org.compiere.process.DocAction;
+import org.compiere.process.DocOptions;
 import org.compiere.process.DocumentEngine;
 import org.compiere.util.AdempiereUserError;
+import org.compiere.util.CLogger;
 import org.compiere.util.DB;
 import org.compiere.util.Env;
 import org.compiere.util.Util;
 
-public class MPlanning extends X_M_Planning implements DocAction{
+public class MPlanning extends X_M_Planning implements DocAction,DocOptions{
 	
 	private static final long serialVersionUID = 1440247321398888484L;
 	
+	/**
+	 * 
+	 */
+	/** Log								*/
+	protected static CLogger		m_log = CLogger.getCLogger (MPlanning.class);
 	protected int lineno;
 	protected int count;
 
-	public MPlanning(Properties ctx, int M_Planning_ID, String trxName, String[] virtualColumns) {
+	public MPlanning(Properties ctx, int M_Planning_ID, String trxName) {
+		this (ctx, M_Planning_ID, trxName, (String[]) null);
+	}
+
+	public MPlanning(Properties ctx, int M_Planning_ID, String trxName, String... virtualColumns) {
 		super(ctx, M_Planning_ID, trxName, virtualColumns);
-		if(M_Planning_ID==0) {
+		if (M_Planning_ID == 0) {
 			setDocStatus(DOCSTATUS_Drafted);
-			setDocAction(DOCACTION_Prepare);
+			setDocAction (DOCACTION_Prepare);
 		}
 	}
-	
-	public MPlanning(Properties ctx, int M_Planning_ID, String trxName) {
-		this(ctx,M_Planning_ID,trxName,(String[]) null);
-		// TODO Auto-generated constructor stub
-	}
-	
+
 	public MPlanning(Properties ctx, ResultSet rs, String trxName) {
 		super(ctx, rs, trxName);
 	}
 	
-	/**	Process Message 			*/
-	protected String		m_processMsg = null;
-	/**	Just Prepared Flag			*/
-	protected boolean		m_justPrepared = false;
-	
-	/**
-	 * 
-	 * @param M_Product_ID
-	 * @return error message (if any)
-	 */
-	public String validateEndProduct(int M_Product_ID) {
-		String msg = isBom(M_Product_ID);
-		if (!Util.isEmpty(msg))
-			return msg;
-
-		if (!costsOK(M_Product_ID)) {
-			msg = "Excessive difference in standard costs";
-			if (MSysConfig.getBooleanValue(MSysConfig.MFG_ValidateCostsDifferenceOnCreate, false, getAD_Client_ID())) {
-				return msg;
-			} else {
-				log.warning(msg);
-			}
-		}
-
-		return null;
-	}
-	
-	protected String isBom(int M_Product_ID)
-	{
-		String bom = DB.getSQLValueString(get_TrxName(), "SELECT isbom FROM M_Product WHERE M_Product_ID = ?", M_Product_ID);
-		if ("N".compareTo(bom) == 0)
-		{
-			return "Attempt to create product line for Non Bill Of Materials";
-		}
-		int materials = DB.getSQLValue(get_TrxName(), "SELECT count(bl.PP_Product_BOMLine_ID) FROM PP_Product_BOMLine bl JOIN PP_Product_BOM b ON b.PP_Product_BOM_ID = bl.PP_Product_BOM_ID WHERE b.M_Product_ID = ? " +
-				" AND bl.IsActive='Y' AND b.IsActive='Y' AND b.BOMType='A' AND b.BOMUse='A' ", M_Product_ID );
-		if (materials == 0)
-		{
-			return "Attempt to create product line for Bill Of Materials with no BOM Components";
-		}
-		return null;
-	}
-	
-	protected boolean costsOK(int M_Product_ID) throws AdempiereUserError {
-		MProduct product = MProduct.get(getCtx(), M_Product_ID, get_TrxName());
-		String costingMethod=product.getCostingMethod(MClient.get(getCtx()).getAcctSchema());
-		// will not work if non-standard costing is used
-		if (MAcctSchema.COSTINGMETHOD_StandardCosting.equals(costingMethod))
-		{	
-			String sql = "SELECT ABS(((cc.currentcostprice-(SELECT SUM(c.currentcostprice*bom.qtybom)"
-					+ " FROM m_cost c"
-					+ " INNER JOIN pp_product_bomline bom ON (c.m_product_id=bom.m_product_id AND bom.IsActive='Y')"
-					+ " JOIN pp_product_bom b ON (b.pp_product_bom_id = bom.pp_product_bom_id)"
-					+ " WHERE b.m_product_id = pp.m_product_id and b.bomuse='A' and b.bomtype='A' AND b.IsActive='Y')"
-					+ " )/cc.currentcostprice))"
-					+ " FROM m_product pp"
-					+ " INNER JOIN m_cost cc on (cc.m_product_id=pp.m_product_id)"
-					+ " INNER JOIN m_costelement ce ON (cc.m_costelement_id=ce.m_costelement_id)"
-					+ " WHERE cc.currentcostprice > 0 AND pp.M_Product_ID = ?"
-					+ " AND ce.costingmethod='S'";
-
-			BigDecimal costPercentageDiff = DB.getSQLValueBD(get_TrxName(), sql, M_Product_ID);
-
-			if (costPercentageDiff == null)
-			{
-				costPercentageDiff = Env.ZERO;
-				String msg = "Could not retrieve costs";
-				if (MSysConfig.getBooleanValue(MSysConfig.MFG_ValidateCostsOnCreate, false, getAD_Client_ID())) {
-					throw new AdempiereUserError(msg);
-				} else {
-					log.warning(msg);
-				}
-			}
-
-			if ( (costPercentageDiff.compareTo(new BigDecimal("0.005")))< 0 )
-				return true;
-
-			return false;
-		}
-		return true;
-	}
-	
-	@Override
-	public boolean processIt(String action) {
-		m_processMsg = null;
-		DocumentEngine engine = new DocumentEngine(this,getDocStatus());
-		return engine.processIt(action, getDocAction());
+	public MPlanning( MOrderLine line ) {
+		super( line.getCtx(), 0, line.get_TrxName());
+		setAD_Client_ID(line.getAD_Client_ID());
+		setAD_Org_ID(line.getAD_Org_ID());
+		setMovementDate( line.getDatePromised() );
 	}
 
-	@Override
-	public boolean unlockIt() {
-		if (log.isLoggable(Level.INFO)) log.info("unlockIt - " + toString());
-		setProcessing(false);
-		return true;
-	}
-
-	@Override
-	public boolean invalidateIt() {
-		if (log.isLoggable(Level.INFO)) log.info(toString());
-		setDocAction(DOCACTION_Prepare);
-		return true;
-	}
-
-	@Override
-	public String prepareIt() {
-		if (log.isLoggable(Level.INFO)) log.info(toString());
-		m_processMsg = ModelValidationEngine.get().fireDocValidate(this, ModelValidator.TIMING_BEFORE_PREPARE);
-		if (m_processMsg != null)
-			return DocAction.STATUS_Invalid;
-
-		//	Std Period open?
-		MPeriod.testPeriodOpen(getCtx(), getMovementDate(), MDocType.DOCBASETYPE_MaterialProduction, getAD_Org_ID());
-
-		if ( getIsCreated().equals("N") )
-		{
-			m_processMsg = "Not created";
-			return DocAction.STATUS_Invalid; 
-		}
-
-		if (!isUseProductionPlan()) {
-			m_processMsg = validateEndProduct(getM_Product_ID());			
-			if (!Util.isEmpty(m_processMsg)) {
-				return DocAction.STATUS_Invalid;
-			}
-		} else {
-			Query planQuery = new Query(getCtx(), I_M_PlanningProduct.Table_Name, "M_PlanningProduct.M_Planning_ID=?", get_TrxName());
-			List<MPlanningProduct> plans = planQuery.setParameters(getM_Planning_ID()).list();
-			for(MPlanningProduct plan : plans) {
-				m_processMsg = validateEndProduct(plan.getM_Product_ID());
-				if (!Util.isEmpty(m_processMsg)) {
-					return DocAction.STATUS_Invalid;
-				}
-			}
-		}
-
-		m_processMsg = ModelValidationEngine.get().fireDocValidate(this, ModelValidator.TIMING_AFTER_PREPARE);
-		if (m_processMsg != null)
-			return DocAction.STATUS_Invalid;
-
-		m_justPrepared = true;
-		if (!DOCACTION_Complete.equals(getDocAction()))
-			setDocAction(DOCACTION_Complete);
-		return DocAction.STATUS_InProgress;
-	}
-	
-	
-
-	@Override
-	public boolean approveIt() {
-		return true;
-	}
-
-	@Override
-	public boolean rejectIt() {
-		return true;
-	}
-
-	@Override
-	public String completeIt() {
-		return null;
-	}
-
-	@Override
-	public boolean voidIt() {
-		if (log.isLoggable(Level.INFO)) log.info(toString());
-		// Before Void
-		m_processMsg = ModelValidationEngine.get().fireDocValidate(this,ModelValidator.TIMING_BEFORE_VOID);
-		if (m_processMsg != null)
-			return false;
-
-		if (DOCSTATUS_Closed.equals(getDocStatus())
-				|| DOCSTATUS_Reversed.equals(getDocStatus())
-				|| DOCSTATUS_Voided.equals(getDocStatus()))
-		{
-			m_processMsg = "Document Closed: " + getDocStatus();
-			setDocAction(DOCACTION_None);
-			return false;
-		}
-
-		// Not Processed
-		if (DOCSTATUS_Drafted.equals(getDocStatus())
-				|| DOCSTATUS_Invalid.equals(getDocStatus())
-				|| DOCSTATUS_InProgress.equals(getDocStatus())
-				|| DOCSTATUS_Approved.equals(getDocStatus())
-				|| DOCSTATUS_NotApproved.equals(getDocStatus()) )
-		{
-			setIsCreated("N");
-			if (!isUseProductionPlan()) {
-				deleteLines(get_TrxName());
-				setProductionQty(BigDecimal.ZERO);
-			} else {
-				Query planQuery = new Query(Env.getCtx(), I_M_PlanningProduct.Table_Name, "M_PlanningProduct.M_Planning_ID=?", get_TrxName());
-				List<MPlanningProduct> plans = planQuery.setParameters(getM_Planning_ID()).list();
-				for(MPlanningProduct plan : plans) {
-					plan.deleteLines(get_TrxName());
-					plan.setProductionPlanQty(BigDecimal.ZERO);
-					plan.setProcessed(true);
-					plan.saveEx();
-				}
-			}
-
-		}
-		else
-		{
-			boolean accrual = false;
-			try 
-			{
-				MPeriod.testPeriodOpen(getCtx(), getMovementDate(), Doc.DOCTYPE_MatProduction, getAD_Org_ID());
-			}
-			catch (PeriodClosedException e) 
-			{
-				accrual = true;
-			}
-
-			if (accrual)
-				return reverseAccrualIt();
-			else
-				return reverseCorrectIt();
-		}
-
-		if (getC_OrderLine_ID() > 0)
-			setC_OrderLine_ID(0);
-
-		// After Void
-		m_processMsg = ModelValidationEngine.get().fireDocValidate(this,ModelValidator.TIMING_AFTER_VOID);
-		if (m_processMsg != null)
-			return false;
-
-		setProcessed(true);
-		setDocAction(DOCACTION_None);
-		return true; 
-	}
-
-	@Override
-	public boolean closeIt() {
-		if (log.isLoggable(Level.INFO)) log.info(toString());
-		// Before Close
-		m_processMsg = ModelValidationEngine.get().fireDocValidate(this,ModelValidator.TIMING_BEFORE_CLOSE);
-		if (m_processMsg != null)
-			return false;
-
-		setProcessed(true);
-		setDocAction(DOCACTION_None);
-
-		// After Close
-		m_processMsg = ModelValidationEngine.get().fireDocValidate(this,ModelValidator.TIMING_AFTER_CLOSE);
-		if (m_processMsg != null)
-			return false;
-		return true;
-	}
-
-	@Override
-	public boolean reverseCorrectIt() {
-		if (log.isLoggable(Level.INFO)) log.info(toString());
-		// Before reverseCorrect
-		m_processMsg = ModelValidationEngine.get().fireDocValidate(this,ModelValidator.TIMING_BEFORE_REVERSECORRECT);
-		if (m_processMsg != null)
-			return false;
-
-		MPlanning reversal = reverse(false);
-		if (reversal == null)
-			return false;
-
-		// After reverseCorrect
-		m_processMsg = ModelValidationEngine.get().fireDocValidate(this,ModelValidator.TIMING_AFTER_REVERSECORRECT);
-		if (m_processMsg != null)
-			return false;
-
-		m_processMsg = reversal.getDocumentNo();
-
-		return true;
-	}
-	
-	protected MPlanning reverse(boolean accrual) {
-		Timestamp reversalDate = accrual ? Env.getContextAsDate(getCtx(), Env.DATE) : getMovementDate();
-		if (reversalDate == null) {
-			reversalDate = new Timestamp(System.currentTimeMillis());
-		}
-
-		if (getC_OrderLine_ID() > 0)
-			setC_OrderLine_ID(0);
-
-		MPeriod.testPeriodOpen(getCtx(), reversalDate, Doc.DOCTYPE_MatProduction, getAD_Org_ID());
-		MPlanning reversal = null;
-		reversal = copyFrom (reversalDate);
-
-		StringBuilder msgadd = new StringBuilder("{->").append(getDocumentNo()).append(")");
-		reversal.addDescription(msgadd.toString());
-		reversal.setReversal_ID(getM_Planning_ID());
-		reversal.saveEx(get_TrxName());
+	public MPlanning( MProjectLine line ) {
+		super( line.getCtx(), 0, line.get_TrxName());
+		MProject project = new MProject(line.getCtx(), line.getC_Project_ID(), line.get_TrxName());
+		MWarehouse wh = new MWarehouse(line.getCtx(), project.getM_Warehouse_ID(), line.get_TrxName());
 		
-		// Reverse Line Qty
-		MPlanningLine[] sLines = getLines();
-		MPlanningLine[] tLines = reversal.getLines();
-		for (int i = 0; i < sLines.length; i++)
-		{		
-			//	We need to copy MA
-			if (sLines[i].getM_AttributeSetInstance_ID() == 0)
-			{
-				MPlanningLineMA mas[] = MPlanningLineMA.get(getCtx(), sLines[i].get_ID(), get_TrxName());
-				for (int j = 0; j < mas.length; j++)
-				{
-					MPlanningLineMA ma = new MPlanningLineMA (tLines[i],
-						mas[j].getM_AttributeSetInstance_ID(),
-						mas[j].getMovementQty().negate(),mas[j].getDateMaterialPolicy());
-					ma.saveEx(get_TrxName());					
-				}
-			}
+		MLocator M_Locator = null;
+		int M_Locator_ID = 0;
+
+		if (wh != null)
+		{
+			M_Locator = wh.getDefaultLocator();
+			M_Locator_ID = M_Locator.getM_Locator_ID();
 		}
-
-		
-			if (!reversal.processIt(DocAction.ACTION_Complete))
-			{
-				m_processMsg = "Reversal ERROR: " + reversal.getProcessMsg();
-				return null;
-			}
-
-		reversal.closeIt();
-		reversal.setProcessing (false);
-		reversal.setDocStatus(DOCSTATUS_Reversed);
-		reversal.setDocAction(DOCACTION_None);
-		reversal.saveEx(get_TrxName());
-
-		msgadd = new StringBuilder("(").append(reversal.getDocumentNo()).append("<-)");
-		addDescription(msgadd.toString());
-
-		setProcessed(true);
-		setReversal_ID(reversal.getM_Planning_ID());
-		setDocStatus(DOCSTATUS_Reversed);	//	may come from void
-		setDocAction(DOCACTION_None);		
-
-		return reversal;
+		setAD_Client_ID(line.getAD_Client_ID());
+		setAD_Org_ID(line.getAD_Org_ID());
+		setM_Product_ID(line.getM_Product_ID());
+		setProductionPlanQty(line.getPlannedQty());
+		setM_Locator_ID(M_Locator_ID);
+		setDescription(project.getValue()+"_"+project.getName()+" Line: "+line.getLine()+" (project)");
+		setC_Project_ID(line.getC_Project_ID());
+		setC_BPartner_ID(project.getC_BPartner_ID());
+		setC_Campaign_ID(project.getC_Campaign_ID());
+		setAD_OrgTrx_ID(project.getAD_OrgTrx_ID());
+		setC_Activity_ID(project.getC_Activity_ID());
+		setC_ProjectPhase_ID(line.getC_ProjectPhase_ID());
+		setC_ProjectTask_ID(line.getC_ProjectTask_ID());
+		setMovementDate( Env.getContextAsDate(p_ctx, Env.DATE));
 	}
-	
-	protected MPlanning copyFrom(Timestamp reversalDate) {
-		MPlanning to = new MPlanning(getCtx(), 0, get_TrxName());
-		PO.copyValues (this, to, getAD_Client_ID(), getAD_Org_ID());
 
-		to.set_ValueNoCheck ("DocumentNo", null);
-		//
-		to.setDocStatus (DOCSTATUS_Drafted);		//	Draft
-		to.setDocAction(DOCACTION_Complete);
-		to.setMovementDate(reversalDate);
-		to.setIsComplete(false);
-		to.setIsCreated("Y");
-		to.setProcessing(false);
-		to.setProcessed(false);
-		to.setIsUseProductionPlan(isUseProductionPlan());
-		if (isUseProductionPlan()) {
-			to.saveEx();
-			Query planQuery = new Query(Env.getCtx(), I_M_PlanningProduct.Table_Name, "M_PlanningProduct.M_Planning_ID=?", get_TrxName());
-			List<MPlanningProduct> fplans = planQuery.setParameters(getM_Planning_ID()).list();
-			for(MPlanningProduct fplan : fplans) {
-				MPlanningProduct tplan = new MPlanningProduct(getCtx(), 0, get_TrxName());
-				PO.copyValues (fplan, tplan, getAD_Client_ID(), getAD_Org_ID());
-				tplan.setM_Planning_ID(to.getM_Planning_ID());
-				tplan.setProductionPlanQty(fplan.getProductionPlanQty().negate());
-				tplan.setProcessed(false);
-				tplan.saveEx();
-
-				MPlanningLine[] flines = fplan.getLines();
-				for(MPlanningLine fline : flines) {
-					MPlanningLine tline = new MPlanningLine(tplan);
-					PO.copyValues (fline, tline, getAD_Client_ID(), getAD_Org_ID());
-					tline.setM_PlanningProduct_ID(tplan.getM_PlanningProduct_ID());
-					tline.setMovementQty(fline.getMovementQty().negate());
-					tline.setPlannedQty(fline.getPlannedQty().negate());
-					tline.setQtyUsed(fline.getQtyUsed().negate());
-					tline.saveEx();
-				}
-			}
-		} else {
-			to.setProductionQty(getProductionQty().negate());	
-			to.saveEx();
-			MPlanningLine[] flines = getLines();
-			for(MPlanningLine fline : flines) {
-				MPlanningLine tline = new MPlanningLine(to);
-				PO.copyValues (fline, tline, getAD_Client_ID(), getAD_Org_ID());
-				tline.setM_Planning_ID(to.getM_Planning_ID());
-				tline.setMovementQty(fline.getMovementQty().negate());
-				tline.setPlannedQty(fline.getPlannedQty().negate());
-				tline.setQtyUsed(fline.getQtyUsed().negate());
-				tline.saveEx();
-			}
-		}
-
-		return to;
-	}
-	
-	/**
-	 * 	Add to Description
-	 *	@param description text
-	 */
-	public void addDescription (String description)
+	@Override
+	public String completeIt()
 	{
-		String desc = getDescription();
-		if (desc == null)
-			setDescription(description);
-		else{
-			StringBuilder msgd = new StringBuilder(desc).append(" | ").append(description);
-			setDescription(msgd.toString());
-		}
-	}	//	addDescription
-
-	@Override
-	public boolean reverseAccrualIt() {
-		if (log.isLoggable(Level.INFO)) log.info(toString());
-		// Before reverseAccrual
-		m_processMsg = ModelValidationEngine.get().fireDocValidate(this,ModelValidator.TIMING_BEFORE_REVERSEACCRUAL);
-		if (m_processMsg != null)
-			return false;
-
-		MPlanning reversal = reverse(true);
-		if (reversal == null)
-			return false;
-
-		// After reverseAccrual
-		m_processMsg = ModelValidationEngine.get().fireDocValidate(this,ModelValidator.TIMING_AFTER_REVERSEACCRUAL);
-		if (m_processMsg != null)
-			return false;
-
-		m_processMsg = reversal.getDocumentNo();
-
-		return true;
+		// Re-Check
+//		if (!m_justPrepared)
+//		{
+//			String status = prepareIt();
+//			m_justPrepared = false;
+//			if (!DocAction.STATUS_InProgress.equals(status))
+//				return status;
+//		}
+//
+//		m_processMsg = ModelValidationEngine.get().fireDocValidate(this, ModelValidator.TIMING_BEFORE_COMPLETE);
+//		if (m_processMsg != null)
+//			return DocAction.STATUS_Invalid;
+//
+//		StringBuilder errors = new StringBuilder();
+//		int processed = 0;
+//			
+//		if (!isUseProductionPlan()) {
+//			MPlanningLine[] lines = getLines();
+//			//Check if End Product in Production Lines exist
+//			if(!isHaveEndProduct(lines)) {
+//				m_processMsg = "Production does not contain End Product";
+//				return DocAction.STATUS_Invalid;
+//			}
+//			errors.append(processLines(lines));
+//			if (errors.length() > 0) {
+//				m_processMsg = errors.toString();
+//				return DocAction.STATUS_Invalid;
+//			}
+//			processed = processed + lines.length;
+//		} else {
+//			Query planQuery = new Query(Env.getCtx(), I_M_PlanningProduct.Table_Name, "M_PlanningProduct.M_Planning_ID=?", get_TrxName());
+//			List<MPlanningProduct> plans = planQuery.setParameters(getM_Planning_ID()).list();
+//			for(MPlanningProduct plan : plans) {
+//				MPlanningLine[] lines = plan.getLines();
+//				
+//				//Check if End Product in Production Lines exist
+//				if(!isHaveEndProduct(lines)) {
+//					m_processMsg = String.format("Production plan (line %1$d id %2$d) does not contain End Product", plan.getLine(), plan.get_ID());
+//					return DocAction.STATUS_Invalid;
+//				}
+//				
+//				if (lines.length > 0) {
+//					errors.append(processLines(lines));
+//					if (errors.length() > 0) {
+//						m_processMsg = errors.toString();
+//						return DocAction.STATUS_Invalid;
+//					}
+//					processed = processed + lines.length;
+//				}
+//				plan.setProcessed(true);
+//				plan.saveEx();
+//			}
+//		}
+//
+//		//		User Validation
+//		String valid = ModelValidationEngine.get().fireDocValidate(this, ModelValidator.TIMING_AFTER_COMPLETE);
+//		if (valid != null)
+//		{
+//			m_processMsg = valid;
+//			return DocAction.STATUS_Invalid;
+//		}
+//
+//		setProcessed(true);
+//		setDocAction(DOCACTION_Close);
+		setProcessed(true);
+		return DocAction.STATUS_Completed;
 	}
 
-	@Override
-	public boolean reActivateIt() {
-		if (log.isLoggable(Level.INFO)) log.info("reActivateIt - " + toString());
-		// Before reActivate
-		m_processMsg = ModelValidationEngine.get().fireDocValidate(this,ModelValidator.TIMING_BEFORE_REACTIVATE);
-		if (m_processMsg != null)
-			return false;
-
-		// After reActivate
-		m_processMsg = ModelValidationEngine.get().fireDocValidate(this,ModelValidator.TIMING_AFTER_REACTIVATE);
-		if (m_processMsg != null)
-			return false;
+	private boolean isHaveEndProduct(MPlanningLine[] lines) {
+		
+		for(MPlanningLine line : lines) {
+			if(line.isEndProduct())
+				return true;			
+		}
 		return false;
 	}
 
-	@Override
-	public String getSummary() {
-		return getDocumentNo();
-	}
+	protected Object processLines(MPlanningLine[] lines) {
+		StringBuilder errors = new StringBuilder();
+		for ( int i = 0; i<lines.length; i++) {
+			String error = lines[i].createTransactions(getMovementDate(), false);
+			if (!Util.isEmpty(error)) {
+				errors.append(error);
+			} else { 
+				lines[i].setProcessed( true );
+				lines[i].saveEx(get_TrxName());
+			}
+		}
 
-	@Override
-	public String getDocumentInfo() {
-		return getDocumentNo();
-	}
-
-	@Override
-	public File createPDF() {
-		return null;
-	}
-
-	@Override
-	public String getProcessMsg() {
-		return m_processMsg;
-	}
-
-	@Override
-	public int getDoc_User_ID() {
-		return getCreatedBy();
-	}
-
-	@Override
-	public int getC_Currency_ID() {
-		return MClient.get(getCtx()).getC_Currency_ID();
-	}
-
-	@Override
-	public BigDecimal getApprovalAmt() {
-		return BigDecimal.ZERO;
+		return errors.toString();
 	}
 	
+
 	public MPlanningLine[] getLines() {
 		ArrayList<MPlanningLine> list = new ArrayList<MPlanningLine>();
 		
@@ -576,7 +240,7 @@ public class MPlanning extends X_M_Planning implements DocAction{
 		}
 
 	}// deleteLines
-	
+
 	public int createLines(boolean mustBeStocked) {
 		return createLines(mustBeStocked, 0);
 	}
@@ -596,7 +260,7 @@ public class MPlanning extends X_M_Planning implements DocAction{
 		line.setM_Product_ID( finishedProduct.get_ID() );
 		line.setM_Locator_ID( getM_Locator_ID() );
 		line.setMovementQty( getProductionQty());
-		line.setPlannedQty(getProductionQty());
+		line.setPlannedQty(getProductionPlanQty());
 		
 		line.saveEx();
 		count++;
@@ -609,8 +273,8 @@ public class MPlanning extends X_M_Planning implements DocAction{
 		
 		return count;
 	}
-	
-protected int createLines(boolean mustBeStocked, MProduct finishedProduct, BigDecimal requiredQty, int PP_Product_BOM_ID) {
+
+	protected int createLines(boolean mustBeStocked, MProduct finishedProduct, BigDecimal requiredQty, int PP_Product_BOM_ID) {
 		
 		int defaultLocator = 0;
 		
@@ -618,7 +282,7 @@ protected int createLines(boolean mustBeStocked, MProduct finishedProduct, BigDe
 		
 		int M_Warehouse_ID = finishedLocator.getM_Warehouse_ID();
 		
-		// products used in planning
+		// products used in production
 		String sql = " SELECT bl.M_Product_ID, bl.QtyBOM" + " FROM PP_Product_BOMLine bl"
 				+ " JOIN PP_Product_BOM b ON b.PP_Product_BOM_ID = bl.PP_Product_BOM_ID "
 				+ " WHERE b.M_Product_ID=" + finishedProduct.getM_Product_ID() + " AND b.IsActive='Y' AND bl.IsActive='Y' ";				
@@ -790,8 +454,482 @@ protected int createLines(boolean mustBeStocked, MProduct finishedProduct, BigDe
 
 		return count;
 	}
-
 	
+	@Override
+	protected boolean beforeDelete() {
+		deleteLines(get_TrxName());
+		return true;
+	}
+
+	@Override
+	public boolean processIt(String processAction) {
+		m_processMsg = null;
+		DocumentEngine engine = new DocumentEngine (this, getDocStatus());
+		return engine.processIt (processAction, getDocAction());
+	}
+
+	/**	Process Message 			*/
+	protected String		m_processMsg = null;
+	/**	Just Prepared Flag			*/
+	protected boolean		m_justPrepared = false;
+
+	@Override
+	public boolean unlockIt() {
+		if (log.isLoggable(Level.INFO)) log.info("unlockIt - " + toString());
+		setProcessing(false);
+		return true;
+	}
+
+	@Override
+	public boolean invalidateIt() {
+		if (log.isLoggable(Level.INFO)) log.info(toString());
+		setDocAction(DOCACTION_Prepare);
+		return true;
+	}
+
+	@Override
+	public String prepareIt() {
+		if (log.isLoggable(Level.INFO)) log.info(toString());
+		m_processMsg = ModelValidationEngine.get().fireDocValidate(this, ModelValidator.TIMING_BEFORE_PREPARE);
+		if (m_processMsg != null)
+			return DocAction.STATUS_Invalid;
+
+		//	Std Period open?
+//		MPeriod.testPeriodOpen(getCtx(), getMovementDate(), MDocType.DOCBASETYPE_MaterialProduction, getAD_Org_ID());
+
+		if ( getIsCreated().equals("N") )
+		{
+			m_processMsg = "Not created";
+			return DocAction.STATUS_Invalid; 
+		}
+
+		if (!isUseProductionPlan()) {
+			m_processMsg = validateEndProduct(getM_Product_ID());			
+			if (!Util.isEmpty(m_processMsg)) {
+				return DocAction.STATUS_Invalid;
+			}
+		} else {
+			Query planQuery = new Query(getCtx(), I_M_PlanningProduct.Table_Name, "M_PlanningProduct.M_Planning_ID=?", get_TrxName());
+			List<MPlanningProduct> plans = planQuery.setParameters(getM_Planning_ID()).list();
+			for(MPlanningProduct plan : plans) {
+				m_processMsg = validateEndProduct(plan.getM_Product_ID());
+				if (!Util.isEmpty(m_processMsg)) {
+					return DocAction.STATUS_Invalid;
+				}
+			}
+		}
+
+		m_processMsg = ModelValidationEngine.get().fireDocValidate(this, ModelValidator.TIMING_AFTER_PREPARE);
+		if (m_processMsg != null)
+			return DocAction.STATUS_Invalid;
+
+		m_justPrepared = true;
+		if (!DOCACTION_Complete.equals(getDocAction()))
+			setDocAction(DOCACTION_Complete);
+		return DocAction.STATUS_InProgress;
+	}
+
+	/**
+	 * 
+	 * @param M_Product_ID
+	 * @return error message (if any)
+	 */
+	public String validateEndProduct(int M_Product_ID) {
+		String msg = isBom(M_Product_ID);
+		if (!Util.isEmpty(msg))
+			return msg;
+
+//		if (!costsOK(M_Product_ID)) {
+//			msg = "Excessive difference in standard costs";
+//			if (MSysConfig.getBooleanValue(MSysConfig.MFG_ValidateCostsDifferenceOnCreate, false, getAD_Client_ID())) {
+//				return msg;
+//			} else {
+//				log.warning(msg);
+//			}
+//		}
+
+		return null;
+	}
+
+	protected String isBom(int M_Product_ID)
+	{
+		String bom = DB.getSQLValueString(get_TrxName(), "SELECT isbom FROM M_Product WHERE M_Product_ID = ?", M_Product_ID);
+		if ("N".compareTo(bom) == 0)
+		{
+			return "Attempt to create product line for Non Bill Of Materials";
+		}
+		int materials = DB.getSQLValue(get_TrxName(), "SELECT count(bl.PP_Product_BOMLine_ID) FROM PP_Product_BOMLine bl JOIN PP_Product_BOM b ON b.PP_Product_BOM_ID = bl.PP_Product_BOM_ID WHERE b.M_Product_ID = ? " +
+				" AND bl.IsActive='Y' AND b.IsActive='Y' AND b.BOMType='A' AND b.BOMUse='A' ", M_Product_ID );
+		if (materials == 0)
+		{
+			return "Attempt to create product line for Bill Of Materials with no BOM Components";
+		}
+		return null;
+	}
+
+//	protected boolean costsOK(int M_Product_ID) throws AdempiereUserError {
+//		MProduct product = MProduct.get(getCtx(), M_Product_ID, get_TrxName());
+//		String costingMethod=product.getCostingMethod(MClient.get(getCtx()).getAcctSchema());
+//		// will not work if non-standard costing is used
+//		if (MAcctSchema.COSTINGMETHOD_StandardCosting.equals(costingMethod))
+//		{	
+//			String sql = "SELECT ABS(((cc.currentcostprice-(SELECT SUM(c.currentcostprice*bom.qtybom)"
+//					+ " FROM m_cost c"
+//					+ " INNER JOIN pp_product_bomline bom ON (c.m_product_id=bom.m_product_id AND bom.IsActive='Y')"
+//					+ " JOIN pp_product_bom b ON (b.pp_product_bom_id = bom.pp_product_bom_id)"
+//					+ " WHERE b.m_product_id = pp.m_product_id and b.bomuse='A' and b.bomtype='A' AND b.IsActive='Y')"
+//					+ " )/cc.currentcostprice))"
+//					+ " FROM m_product pp"
+//					+ " INNER JOIN m_cost cc on (cc.m_product_id=pp.m_product_id)"
+//					+ " INNER JOIN m_costelement ce ON (cc.m_costelement_id=ce.m_costelement_id)"
+//					+ " WHERE cc.currentcostprice > 0 AND pp.M_Product_ID = ?"
+//					+ " AND ce.costingmethod='S'";
+//
+//			BigDecimal costPercentageDiff = DB.getSQLValueBD(get_TrxName(), sql, M_Product_ID);
+//
+//			if (costPercentageDiff == null)
+//			{
+//				costPercentageDiff = Env.ZERO;
+//				String msg = "Could not retrieve costs";
+//				if (MSysConfig.getBooleanValue(MSysConfig.MFG_ValidateCostsOnCreate, false, getAD_Client_ID())) {
+//					throw new AdempiereUserError(msg);
+//				} else {
+//					log.warning(msg);
+//				}
+//			}
+//
+//			if ( (costPercentageDiff.compareTo(new BigDecimal("0.005")))< 0 )
+//				return true;
+//
+//			return false;
+//		}
+//		return true;
+//	}
+
+	@Override
+	public boolean approveIt() {
+		return true;
+	}
+
+	@Override
+	public boolean rejectIt() {
+		return true;
+	}
+
+	@Override
+	public boolean voidIt() {
+		if (log.isLoggable(Level.INFO)) log.info(toString());
+		// Before Void
+		m_processMsg = ModelValidationEngine.get().fireDocValidate(this,ModelValidator.TIMING_BEFORE_VOID);
+		if (m_processMsg != null)
+			return false;
+
+		if (DOCSTATUS_Closed.equals(getDocStatus())
+				|| DOCSTATUS_Reversed.equals(getDocStatus())
+				|| DOCSTATUS_Voided.equals(getDocStatus()))
+		{
+			m_processMsg = "Document Closed: " + getDocStatus();
+			setDocAction(DOCACTION_None);
+			return false;
+		}
+
+		// Not Processed
+		if (DOCSTATUS_Drafted.equals(getDocStatus())
+				|| DOCSTATUS_Invalid.equals(getDocStatus())
+				|| DOCSTATUS_InProgress.equals(getDocStatus())
+				|| DOCSTATUS_Approved.equals(getDocStatus())
+				|| DOCSTATUS_NotApproved.equals(getDocStatus()) )
+		{
+			setIsCreated("N");
+			if (!isUseProductionPlan()) {
+				deleteLines(get_TrxName());
+				setProductionQty(BigDecimal.ZERO);
+			} else {
+				Query planQuery = new Query(Env.getCtx(), I_M_PlanningProduct.Table_Name, "M_PlanningProduct.M_Planning_ID=?", get_TrxName());
+				List<MPlanningProduct> plans = planQuery.setParameters(getM_Planning_ID()).list();
+				for(MPlanningProduct plan : plans) {
+					plan.deleteLines(get_TrxName());
+					plan.setProductionPlanQty(BigDecimal.ZERO);
+					plan.setProcessed(true);
+					plan.saveEx();
+				}
+			}
+
+		}
+		else
+		{
+			boolean accrual = false;
+			try 
+			{
+				//MPeriod.testPeriodOpen(getCtx(), getMovementDate(), Doc.DOCTYPE_MatProduction, getAD_Org_ID());
+			}
+			catch (PeriodClosedException e) 
+			{
+				accrual = true;
+			}
+
+			if (accrual)
+				return reverseAccrualIt();
+			else
+				return reverseCorrectIt();
+		}
+
+		if (getC_OrderLine_ID() > 0)
+			setC_OrderLine_ID(0);
+
+		// After Void
+		m_processMsg = ModelValidationEngine.get().fireDocValidate(this,ModelValidator.TIMING_AFTER_VOID);
+		if (m_processMsg != null)
+			return false;
+
+		setProcessed(true);
+		setDocAction(DOCACTION_None);
+		return true; 
+	}
+
+	@Override
+	public boolean closeIt() {
+		if (log.isLoggable(Level.INFO)) log.info(toString());
+		// Before Close
+		m_processMsg = ModelValidationEngine.get().fireDocValidate(this,ModelValidator.TIMING_BEFORE_CLOSE);
+		if (m_processMsg != null)
+			return false;
+
+		setProcessed(true);
+		setDocAction(DOCACTION_None);
+
+		// After Close
+		m_processMsg = ModelValidationEngine.get().fireDocValidate(this,ModelValidator.TIMING_AFTER_CLOSE);
+		if (m_processMsg != null)
+			return false;
+		return true;
+	}
+
+	@Override
+	public boolean reverseCorrectIt() 
+	{
+		if (log.isLoggable(Level.INFO)) log.info(toString());
+		// Before reverseCorrect
+		m_processMsg = ModelValidationEngine.get().fireDocValidate(this,ModelValidator.TIMING_BEFORE_REVERSECORRECT);
+		if (m_processMsg != null)
+			return false;
+
+		MPlanning reversal = reverse(false);
+		if (reversal == null)
+			return false;
+
+		// After reverseCorrect
+		m_processMsg = ModelValidationEngine.get().fireDocValidate(this,ModelValidator.TIMING_AFTER_REVERSECORRECT);
+		if (m_processMsg != null)
+			return false;
+
+		m_processMsg = reversal.getDocumentNo();
+
+		return true;
+	}
+
+	protected MPlanning reverse(boolean accrual) {
+		Timestamp reversalDate = accrual ? Env.getContextAsDate(getCtx(), Env.DATE) : getMovementDate();
+		if (reversalDate == null) {
+			reversalDate = new Timestamp(System.currentTimeMillis());
+		}
+
+		if (getC_OrderLine_ID() > 0)
+			setC_OrderLine_ID(0);
+
+		//MPeriod.testPeriodOpen(getCtx(), reversalDate, Doc.DOCTYPE_MatProduction, getAD_Org_ID());
+		MPlanning reversal = null;
+		reversal = copyFrom (reversalDate);
+
+		StringBuilder msgadd = new StringBuilder("{->").append(getDocumentNo()).append(")");
+		reversal.addDescription(msgadd.toString());
+		reversal.setReversal_ID(getM_Planning_ID());
+		reversal.saveEx(get_TrxName());
+		
+		// Reverse Line Qty
+		MPlanningLine[] sLines = getLines();
+		MPlanningLine[] tLines = reversal.getLines();
+		for (int i = 0; i < sLines.length; i++)
+		{		
+			//	We need to copy MA
+			if (sLines[i].getM_AttributeSetInstance_ID() == 0)
+			{
+				MPlanningLineMA mas[] = MPlanningLineMA.get(getCtx(), sLines[i].get_ID(), get_TrxName());
+				for (int j = 0; j < mas.length; j++)
+				{
+					MPlanningLineMA ma = new MPlanningLineMA (tLines[i],
+						mas[j].getM_AttributeSetInstance_ID(),
+						mas[j].getMovementQty().negate(),mas[j].getDateMaterialPolicy());
+					ma.saveEx(get_TrxName());					
+				}
+			}
+		}
+
+		if (!reversal.processIt(DocAction.ACTION_Complete))
+		{
+			m_processMsg = "Reversal ERROR: " + reversal.getProcessMsg();
+			return null;
+		}
+
+		reversal.closeIt();
+		reversal.setProcessing (false);
+		reversal.setDocStatus(DOCSTATUS_Reversed);
+		reversal.setDocAction(DOCACTION_None);
+		reversal.saveEx(get_TrxName());
+
+		msgadd = new StringBuilder("(").append(reversal.getDocumentNo()).append("<-)");
+		addDescription(msgadd.toString());
+
+		setProcessed(true);
+		setReversal_ID(reversal.getM_Planning_ID());
+		setDocStatus(DOCSTATUS_Reversed);	//	may come from void
+		setDocAction(DOCACTION_None);		
+
+		return reversal;
+	}
+
+	protected MPlanning copyFrom(Timestamp reversalDate) {
+		MPlanning to = new MPlanning(getCtx(), 0, get_TrxName());
+		PO.copyValues (this, to, getAD_Client_ID(), getAD_Org_ID());
+
+		to.set_ValueNoCheck ("DocumentNo", null);
+		//
+		to.setDocStatus (DOCSTATUS_Drafted);		//	Draft
+		to.setDocAction(DOCACTION_Complete);
+		to.setMovementDate(reversalDate);
+		to.setIsComplete(false);
+		to.setIsCreated("Y");
+		to.setProcessing(false);
+		to.setProcessed(false);
+		to.setIsUseProductionPlan(isUseProductionPlan());
+		if (isUseProductionPlan()) {
+			to.saveEx();
+			Query planQuery = new Query(Env.getCtx(), I_M_PlanningProduct.Table_Name, "M_PlanningProduct.M_Planning_ID=?", get_TrxName());
+			List<MPlanningProduct> fplans = planQuery.setParameters(getM_Planning_ID()).list();
+			for(MPlanningProduct fplan : fplans) {
+				MPlanningProduct tplan = new MPlanningProduct(getCtx(), 0, get_TrxName());
+				PO.copyValues (fplan, tplan, getAD_Client_ID(), getAD_Org_ID());
+				tplan.setM_Planning_ID(to.getM_Planning_ID());
+				tplan.setProductionPlanQty(fplan.getProductionPlanQty().negate());
+				tplan.setProcessed(false);
+				tplan.saveEx();
+
+				MPlanningLine[] flines = fplan.getLines();
+				for(MPlanningLine fline : flines) {
+					MPlanningLine tline = new MPlanningLine(tplan);
+					PO.copyValues (fline, tline, getAD_Client_ID(), getAD_Org_ID());
+					tline.setM_PlanningProduct_ID(tplan.getM_PlanningProduct_ID());
+					tline.setMovementQty(fline.getMovementQty().negate());
+					tline.setPlannedQty(fline.getPlannedQty().negate());
+					tline.setQtyUsed(fline.getQtyUsed().negate());
+					tline.saveEx();
+				}
+			}
+		} else {
+			to.setProductionQty(getProductionQty().negate());	
+			to.saveEx();
+			MPlanningLine[] flines = getLines();
+			for(MPlanningLine fline : flines) {
+				MPlanningLine tline = new MPlanningLine(to);
+				PO.copyValues (fline, tline, getAD_Client_ID(), getAD_Org_ID());
+				tline.setM_Planning_ID(to.getM_Planning_ID());
+				tline.setMovementQty(fline.getMovementQty().negate());
+				tline.setPlannedQty(fline.getPlannedQty().negate());
+				tline.setQtyUsed(fline.getQtyUsed().negate());
+				tline.saveEx();
+			}
+		}
+
+		return to;
+	}
+
+	/**
+	 * 	Add to Description
+	 *	@param description text
+	 */
+	public void addDescription (String description)
+	{
+		String desc = getDescription();
+		if (desc == null)
+			setDescription(description);
+		else{
+			StringBuilder msgd = new StringBuilder(desc).append(" | ").append(description);
+			setDescription(msgd.toString());
+		}
+	}	//	addDescription
+
+	@Override
+	public boolean reverseAccrualIt() {
+		if (log.isLoggable(Level.INFO)) log.info(toString());
+		// Before reverseAccrual
+		m_processMsg = ModelValidationEngine.get().fireDocValidate(this,ModelValidator.TIMING_BEFORE_REVERSEACCRUAL);
+		if (m_processMsg != null)
+			return false;
+
+		MPlanning reversal = reverse(true);
+		if (reversal == null)
+			return false;
+
+		// After reverseAccrual
+		m_processMsg = ModelValidationEngine.get().fireDocValidate(this,ModelValidator.TIMING_AFTER_REVERSEACCRUAL);
+		if (m_processMsg != null)
+			return false;
+
+		m_processMsg = reversal.getDocumentNo();
+
+		return true;
+	}
+
+	@Override
+	public boolean reActivateIt() {
+		if (log.isLoggable(Level.INFO)) log.info("reActivateIt - " + toString());
+		// Before reActivate
+		m_processMsg = ModelValidationEngine.get().fireDocValidate(this,ModelValidator.TIMING_BEFORE_REACTIVATE);
+		if (m_processMsg != null)
+			return false;
+
+		// After reActivate
+		m_processMsg = ModelValidationEngine.get().fireDocValidate(this,ModelValidator.TIMING_AFTER_REACTIVATE);
+		if (m_processMsg != null)
+			return false;
+		return false;
+	}
+
+	@Override
+	public String getSummary() {
+		return getDocumentNo();
+	}
+
+	@Override
+	public String getDocumentInfo() {
+		return getDocumentNo();
+	}
+
+	@Override
+	public File createPDF() {
+		return null;
+	}
+
+	@Override
+	public String getProcessMsg() {
+		return m_processMsg;
+	}
+
+	@Override
+	public int getDoc_User_ID() {
+		return getCreatedBy();
+	}
+
+	@Override
+	public int getC_Currency_ID() {
+		return MClient.get(getCtx()).getC_Currency_ID();
+	}
+
+	@Override
+	public BigDecimal getApprovalAmt() {
+		return BigDecimal.ZERO;
+	}
+
 	@Override
 	protected boolean beforeSave(boolean newRecord) {
 		if (getM_Product_ID() > 0) {
@@ -805,16 +943,38 @@ protected int createLines(boolean mustBeStocked, MProduct finishedProduct, BigDe
 		}
 		return true;
 	}
-	
+
 	/**
 	 * 	Document Status is Complete or Closed
 	 *	@return true if CO, CL or RE
 	 */
 	public boolean isStatusComplete()
 	{
-		String ds = getDocStatus();
-		return DOCSTATUS_Completed.equals(ds)
-			|| DOCSTATUS_Closed.equals(ds)
-			|| DOCSTATUS_Reversed.equals(ds);
+//		String ds = getDocStatus();
+//		return DOCSTATUS_Completed.equals(ds)
+//			|| DOCSTATUS_Closed.equals(ds)
+//			|| DOCSTATUS_Reversed.equals(ds);
+		return true;
 	}	//	isStatusComplete
+
+	@Override
+	public int customizeValidActions(String docStatus, Object processing, String orderType, String isSOTrx,
+			int AD_Table_ID, String[] docAction, String[] options, int index) {
+		if(options == null) {
+			throw new IllegalArgumentException("Option array parameter is null");
+		}
+		if(docAction == null) {
+			throw new IllegalArgumentException("Doc action array parameter is null");
+		}
+		if(docStatus.equals(DocumentEngine.STATUS_Drafted )|| docStatus.equals(DocumentEngine.STATUS_Invalid)) {
+			options[index++] = DocumentEngine.ACTION_Complete;
+			options[index++] = DocumentEngine.ACTION_Prepare;
+			options[index++] = DocumentEngine.ACTION_Void;
+			
+		}else if(docStatus.equals(DocumentEngine.STATUS_Completed)){
+			options[index++] = DocumentEngine.ACTION_Void;
+			options[index++] = DocumentEngine.ACTION_ReActivate;
+		}
+		return index;
+	}
 }

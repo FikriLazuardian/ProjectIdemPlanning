@@ -7,4 +7,6 @@ Automatic-Module-Name: org.tcf.planning
 Bundle-RequiredExecutionEnvironment: JavaSE-11
 Require-Bundle: org.adempiere.base;bundle-version="9.0.0",
  org.adempiere.plugin.utils;bundle-version="9.0.0"
-Service-Component: OSGI-INF/PlanningModelFactory.xml
+Service-Component: OSGI-INF/PlanningModelFactory.xml,
+ OSGI-INF/PlanningDocFactory.xml
+Export-Package: org.tcf.model

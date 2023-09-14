@@ -34,7 +34,7 @@ public class X_M_PlanningLine extends PO implements I_M_PlanningLine, I_Persiste
 	/**
 	 *
 	 */
-	private static final long serialVersionUID = 20230717L;
+	private static final long serialVersionUID = 20230804L;
 
     /** Standard Constructor */
     public X_M_PlanningLine (Properties ctx, int M_PlanningLine_ID, String trxName)
@@ -44,7 +44,6 @@ public class X_M_PlanningLine extends PO implements I_M_PlanningLine, I_Persiste
         {
 			setLine (0);
 // @SQL=SELECT NVL(MAX(Line),0)+10 AS DefaultValue FROM M_PlanningLine WHERE M_Planning_ID=@M_Planning_ID@
-			setM_AttributeSetInstance_ID (0);
 			setM_Locator_ID (0);
 // @M_Locator_ID@
 			setMovementQty (Env.ZERO);
@@ -62,7 +61,6 @@ public class X_M_PlanningLine extends PO implements I_M_PlanningLine, I_Persiste
         {
 			setLine (0);
 // @SQL=SELECT NVL(MAX(Line),0)+10 AS DefaultValue FROM M_PlanningLine WHERE M_Planning_ID=@M_Planning_ID@
-			setM_AttributeSetInstance_ID (0);
 			setM_Locator_ID (0);
 // @M_Locator_ID@
 			setMovementQty (Env.ZERO);

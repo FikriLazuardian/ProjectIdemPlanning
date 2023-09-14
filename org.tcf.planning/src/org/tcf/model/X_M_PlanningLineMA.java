@@ -35,7 +35,7 @@ public class X_M_PlanningLineMA extends PO implements I_M_PlanningLineMA, I_Pers
 	/**
 	 *
 	 */
-	private static final long serialVersionUID = 20230717L;
+	private static final long serialVersionUID = 20230804L;
 
     /** Standard Constructor */
     public X_M_PlanningLineMA (Properties ctx, int M_PlanningLineMA_ID, String trxName)
