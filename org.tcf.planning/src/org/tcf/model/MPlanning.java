@@ -13,6 +13,7 @@ import java.util.logging.Level;
 
 import org.adempiere.exceptions.AdempiereException;
 import org.adempiere.exceptions.PeriodClosedException;
+import org.compiere.model.MAcctSchema;
 //import org.compiere.model.MAcctSchema;
 import org.compiere.model.MClient;
 //import org.compiere.model.MDocType;
@@ -23,6 +24,7 @@ import org.compiere.model.MProductCategory;
 import org.compiere.model.MProject;
 import org.compiere.model.MProjectLine;
 import org.compiere.model.MStorageOnHand;
+import org.compiere.model.MSysConfig;
 //import org.compiere.model.MSysConfig;
 import org.compiere.model.MWarehouse;
 import org.compiere.model.ModelValidationEngine;
@@ -66,12 +68,12 @@ public class MPlanning extends X_M_Planning implements DocAction,DocOptions{
 		super(ctx, rs, trxName);
 	}
 	
-	public MPlanning( MOrderLine line ) {
-		super( line.getCtx(), 0, line.get_TrxName());
-		setAD_Client_ID(line.getAD_Client_ID());
-		setAD_Org_ID(line.getAD_Org_ID());
-		setMovementDate( line.getDatePromised() );
-	}
+//	public MPlanning( MOrderLine line ) {
+//		super( line.getCtx(), 0, line.get_TrxName());
+//		setAD_Client_ID(line.getAD_Client_ID());
+//		setAD_Org_ID(line.getAD_Org_ID());
+//		setMovementDate( line.getDatePromised() );
+//	}
 
 	public MPlanning( MProjectLine line ) {
 		super( line.getCtx(), 0, line.get_TrxName());
@@ -91,7 +93,7 @@ public class MPlanning extends X_M_Planning implements DocAction,DocOptions{
 		setM_Product_ID(line.getM_Product_ID());
 		setProductionPlanQty(line.getPlannedQty());
 		setM_Locator_ID(M_Locator_ID);
-		setDescription(project.getValue()+"_"+project.getName()+" Line: "+line.getLine()+" (project)");
+		setDescription(project.getValue()+"_"+ project.getName()+" Line: "+ line.getLine()+" (project)");
 		setC_Project_ID(line.getC_Project_ID());
 		setC_BPartner_ID(project.getC_BPartner_ID());
 		setC_Campaign_ID(project.getC_Campaign_ID());
@@ -106,69 +108,69 @@ public class MPlanning extends X_M_Planning implements DocAction,DocOptions{
 	public String completeIt()
 	{
 		// Re-Check
-//		if (!m_justPrepared)
-//		{
-//			String status = prepareIt();
-//			m_justPrepared = false;
-//			if (!DocAction.STATUS_InProgress.equals(status))
-//				return status;
-//		}
-//
-//		m_processMsg = ModelValidationEngine.get().fireDocValidate(this, ModelValidator.TIMING_BEFORE_COMPLETE);
-//		if (m_processMsg != null)
-//			return DocAction.STATUS_Invalid;
-//
-//		StringBuilder errors = new StringBuilder();
-//		int processed = 0;
-//			
-//		if (!isUseProductionPlan()) {
-//			MPlanningLine[] lines = getLines();
-//			//Check if End Product in Production Lines exist
-//			if(!isHaveEndProduct(lines)) {
-//				m_processMsg = "Production does not contain End Product";
-//				return DocAction.STATUS_Invalid;
-//			}
-//			errors.append(processLines(lines));
-//			if (errors.length() > 0) {
-//				m_processMsg = errors.toString();
-//				return DocAction.STATUS_Invalid;
-//			}
-//			processed = processed + lines.length;
-//		} else {
-//			Query planQuery = new Query(Env.getCtx(), I_M_PlanningProduct.Table_Name, "M_PlanningProduct.M_Planning_ID=?", get_TrxName());
-//			List<MPlanningProduct> plans = planQuery.setParameters(getM_Planning_ID()).list();
-//			for(MPlanningProduct plan : plans) {
-//				MPlanningLine[] lines = plan.getLines();
-//				
-//				//Check if End Product in Production Lines exist
-//				if(!isHaveEndProduct(lines)) {
-//					m_processMsg = String.format("Production plan (line %1$d id %2$d) does not contain End Product", plan.getLine(), plan.get_ID());
-//					return DocAction.STATUS_Invalid;
-//				}
-//				
-//				if (lines.length > 0) {
-//					errors.append(processLines(lines));
-//					if (errors.length() > 0) {
-//						m_processMsg = errors.toString();
-//						return DocAction.STATUS_Invalid;
-//					}
-//					processed = processed + lines.length;
-//				}
-//				plan.setProcessed(true);
-//				plan.saveEx();
-//			}
-//		}
-//
-//		//		User Validation
-//		String valid = ModelValidationEngine.get().fireDocValidate(this, ModelValidator.TIMING_AFTER_COMPLETE);
-//		if (valid != null)
-//		{
-//			m_processMsg = valid;
-//			return DocAction.STATUS_Invalid;
-//		}
-//
-//		setProcessed(true);
-//		setDocAction(DOCACTION_Close);
+		if (!m_justPrepared)
+		{
+			String status = prepareIt();
+			m_justPrepared = false;
+			if (!DocAction.STATUS_InProgress.equals(status))
+				return status;
+		}
+
+		m_processMsg = ModelValidationEngine.get().fireDocValidate(this, ModelValidator.TIMING_BEFORE_COMPLETE);
+		if (m_processMsg != null)
+			return DocAction.STATUS_Invalid;
+
+		StringBuilder errors = new StringBuilder();
+		int processed = 0;
+			
+		if (!isUseProductionPlan()) {
+			MPlanningLine[] lines = getLines();
+			//Check if End Product in Production Lines exist
+			if(!isHaveEndProduct(lines)) {
+				m_processMsg = "Production does not contain End Product";
+				return DocAction.STATUS_Invalid;
+			}
+			errors.append(processLines(lines));
+			if (errors.length() > 0) {
+				m_processMsg = errors.toString();
+				return DocAction.STATUS_Invalid;
+			}
+			processed = processed + lines.length;
+		} else {
+			Query planQuery = new Query(Env.getCtx(), I_M_PlanningProduct.Table_Name, "M_PlanningProduct.M_Planning_ID=?", get_TrxName());
+			List<MPlanningProduct> plans = planQuery.setParameters(getM_Planning_ID()).list();
+			for(MPlanningProduct plan : plans) {
+				MPlanningLine[] lines = plan.getLines();
+				
+				//Check if End Product in Production Lines exist
+				if(!isHaveEndProduct(lines)) {
+					m_processMsg = String.format("Production plan (line %1$d id %2$d) does not contain End Product", plan.getLine(), plan.get_ID());
+					return DocAction.STATUS_Invalid;
+				}
+				
+				if (lines.length > 0) {
+					errors.append(processLines(lines));
+					if (errors.length() > 0) {
+						m_processMsg = errors.toString();
+						return DocAction.STATUS_Invalid;
+					}
+					processed = processed + lines.length;
+				}
+				plan.setProcessed(true);
+				plan.saveEx();
+			}
+		}
+
+		//		User Validation
+		String valid = ModelValidationEngine.get().fireDocValidate(this, ModelValidator.TIMING_AFTER_COMPLETE);
+		if (valid != null)
+		{
+			m_processMsg = valid;
+			return DocAction.STATUS_Invalid;
+		}
+
+		setProcessed(true);
+		setDocAction(DOCACTION_Close);
 		setProcessed(true);
 		return DocAction.STATUS_Completed;
 	}
@@ -185,13 +187,14 @@ public class MPlanning extends X_M_Planning implements DocAction,DocOptions{
 	protected Object processLines(MPlanningLine[] lines) {
 		StringBuilder errors = new StringBuilder();
 		for ( int i = 0; i<lines.length; i++) {
-			String error = lines[i].createTransactions(getMovementDate(), false);
-			if (!Util.isEmpty(error)) {
-				errors.append(error);
-			} else { 
-				lines[i].setProcessed( true );
-				lines[i].saveEx(get_TrxName());
-			}
+//			String error = lines[i].createTransactions(getMovementDate(), false);
+			lines[i].setProcessed( true );
+			lines[i].saveEx(get_TrxName());
+//			if (!Util.isEmpty(error)) {
+//				errors.append(error);
+//			} else { 
+//				
+//			}
 		}
 
 		return errors.toString();
@@ -259,7 +262,7 @@ public class MPlanning extends X_M_Planning implements DocAction,DocOptions{
 		line.setLine( lineno );
 		line.setM_Product_ID( finishedProduct.get_ID() );
 		line.setM_Locator_ID( getM_Locator_ID() );
-		line.setMovementQty( getProductionQty());
+		line.setMovementQty(BigDecimal.valueOf(0));
 		line.setPlannedQty(getProductionPlanQty());
 		
 		line.saveEx();
@@ -269,7 +272,7 @@ public class MPlanning extends X_M_Planning implements DocAction,DocOptions{
 			setPP_Product_BOM_ID(PP_Product_BOM_ID);
 			saveEx();
 		}
-		createLines(mustBeStocked, finishedProduct, getProductionQty(), PP_Product_BOM_ID);
+		createLines(mustBeStocked, finishedProduct, getProductionPlanQty(), PP_Product_BOM_ID);
 		
 		return count;
 	}
@@ -977,4 +980,6 @@ public class MPlanning extends X_M_Planning implements DocAction,DocOptions{
 		}
 		return index;
 	}
+
+
 }
