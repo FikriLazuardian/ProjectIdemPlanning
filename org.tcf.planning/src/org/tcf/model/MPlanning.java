@@ -40,7 +40,7 @@ import org.compiere.util.DB;
 import org.compiere.util.Env;
 import org.compiere.util.Util;
 
-public class MPlanning extends X_M_Planning implements DocAction,DocOptions{
+public class MPlanning extends X_M_Planning implements DocAction{
 	
 	private static final long serialVersionUID = 1440247321398888484L;
 	
@@ -960,26 +960,26 @@ public class MPlanning extends X_M_Planning implements DocAction,DocOptions{
 		return true;
 	}	//	isStatusComplete
 
-	@Override
-	public int customizeValidActions(String docStatus, Object processing, String orderType, String isSOTrx,
-			int AD_Table_ID, String[] docAction, String[] options, int index) {
-		if(options == null) {
-			throw new IllegalArgumentException("Option array parameter is null");
-		}
-		if(docAction == null) {
-			throw new IllegalArgumentException("Doc action array parameter is null");
-		}
-		if(docStatus.equals(DocumentEngine.STATUS_Drafted )|| docStatus.equals(DocumentEngine.STATUS_Invalid)) {
-			options[index++] = DocumentEngine.ACTION_Complete;
-			options[index++] = DocumentEngine.ACTION_Prepare;
-			options[index++] = DocumentEngine.ACTION_Void;
-			
-		}else if(docStatus.equals(DocumentEngine.STATUS_Completed)){
-			options[index++] = DocumentEngine.ACTION_Void;
-			options[index++] = DocumentEngine.ACTION_ReActivate;
-		}
-		return index;
-	}
+//	@Override
+//	public int customizeValidActions(String docStatus, Object processing, String orderType, String isSOTrx,
+//			int AD_Table_ID, String[] docAction, String[] options, int index) {
+//		if(options == null) {
+//			throw new IllegalArgumentException("Option array parameter is null");
+//		}
+//		if(docAction == null) {
+//			throw new IllegalArgumentException("Doc action array parameter is null");
+//		}
+//		if(docStatus.equals(DocumentEngine.STATUS_Drafted )|| docStatus.equals(DocumentEngine.STATUS_Invalid)) {
+//			options[index++] = DocumentEngine.ACTION_Complete;
+//			options[index++] = DocumentEngine.ACTION_Prepare;
+//			options[index++] = DocumentEngine.ACTION_Void;
+//			
+//		}else if(docStatus.equals(DocumentEngine.STATUS_Completed)){
+//			options[index++] = DocumentEngine.ACTION_Void;
+//			options[index++] = DocumentEngine.ACTION_ReActivate;
+//		}
+//		return index;
+//	}
 
 
 }

@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.logging.Level;
 
-
+import org.compiere.model.MProduction;
 import org.compiere.model.Query;
 import org.compiere.process.ProcessInfoParameter;
 import org.compiere.process.SvrProcess;
@@ -24,7 +24,7 @@ public class PlanningCreate extends SvrProcess {
 	private boolean recreate = false;
 	private BigDecimal newQty = null;
 	private int p_PP_Product_BOM_ID=0;
-	
+	private MProduction m_production = null;
 	
 	protected void prepare() {
 		log.warning("Prepare Method");
@@ -63,7 +63,7 @@ public class PlanningCreate extends SvrProcess {
 	}
 	
 	protected String createLines() throws Exception {
-		
+
 		int created = 0;
 		if (!m_planning.isUseProductionPlan()) {
 			String msg = validateEndProduct(m_planning.getM_Product_ID());
@@ -75,7 +75,6 @@ public class PlanningCreate extends SvrProcess {
 			
 			if (newQty != null )
 				m_planning.setProductionPlanQty(newQty);
-			
 			m_planning.deleteLines(get_TrxName());
 			created = m_planning.createLines(mustBeStocked, p_PP_Product_BOM_ID);
 		} else {
