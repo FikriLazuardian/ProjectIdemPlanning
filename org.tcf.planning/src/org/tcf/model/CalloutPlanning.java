@@ -31,9 +31,9 @@ public class CalloutPlanning extends CalloutEngine{
 		return "";
 	}
 	
-	public String product (Properties ctx, int WindowNo,GridTab mTab, GridField mField,Object value) {
-		Integer M_Planning_ID = (Integer)value;
-		
-		return "";
-	}
+//	public String product (Properties ctx, int WindowNo,GridTab mTab, GridField mField,Object value) {
+//		Integer M_Planning_ID = (Integer)value;
+//		
+//		return "";
+//	}
 }

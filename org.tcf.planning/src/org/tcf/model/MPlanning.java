@@ -18,7 +18,7 @@ import org.compiere.model.MAcctSchema;
 import org.compiere.model.MClient;
 //import org.compiere.model.MDocType;
 import org.compiere.model.MLocator;
-import org.compiere.model.MOrderLine;
+//import org.compiere.model.MOrderLine;
 import org.compiere.model.MProduct;
 import org.compiere.model.MProductCategory;
 import org.compiere.model.MProject;
@@ -953,11 +953,11 @@ public class MPlanning extends X_M_Planning implements DocAction{
 	 */
 	public boolean isStatusComplete()
 	{
-//		String ds = getDocStatus();
-//		return DOCSTATUS_Completed.equals(ds)
-//			|| DOCSTATUS_Closed.equals(ds)
-//			|| DOCSTATUS_Reversed.equals(ds);
-		return true;
+		String ds = getDocStatus();
+		return DOCSTATUS_Completed.equals(ds)
+			|| DOCSTATUS_Closed.equals(ds)
+			|| DOCSTATUS_Reversed.equals(ds);
+//		return true;
 	}	//	isStatusComplete
 
 //	@Override

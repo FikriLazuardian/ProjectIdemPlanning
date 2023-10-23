@@ -3,16 +3,16 @@ package org.tcf.factories;
 import java.sql.ResultSet;
 
 import org.adempiere.base.IModelFactory;
-import org.adempiere.base.IProcessFactory;
+//import org.adempiere.base.IProcessFactory;
 import org.compiere.model.PO;
-import org.compiere.process.ProcessCall;
+//import org.compiere.process.ProcessCall;
 import org.compiere.util.Env;
 import org.tcf.model.MPlanning;
 import org.tcf.model.MPlanningLine;
 import org.tcf.model.MPlanningLineMA;
-import org.tcf.process.PlanningCreate;
+//import org.tcf.process.PlanningCreate;
 
-public class TcfPlanningModelFactory implements IModelFactory,IProcessFactory {
+public class TcfPlanningModelFactory implements IModelFactory {
 
 	@Override
 	public Class<?> getClass(String tableName) {
@@ -61,13 +61,13 @@ public class TcfPlanningModelFactory implements IModelFactory,IProcessFactory {
 		return null;
 	}
 
-	@Override
-	public ProcessCall newProcessInstance(String className) {
-		// TODO Auto-generated method stub
-		if(className.equals("org.tcf.process.PlanningCreate")) {
-			return new PlanningCreate();
-		}
-		return null;
-	}
+//	@Override
+//	public ProcessCall newProcessInstance(String className) {
+//		// TODO Auto-generated method stub
+//		if(className.equals("org.tcf.process.PlanningCreate")) {
+//			return new PlanningCreate();
+//		}
+//		return null;
+//	}
 
 }

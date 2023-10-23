@@ -1,19 +1,22 @@
 Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: Planning
-Bundle-SymbolicName: org.tcf.planning
+Bundle-SymbolicName: org.tcf.planning;singleton:=true
 Bundle-Version: 9.0.0.qualifier
 Automatic-Module-Name: org.tcf.planning
 Bundle-RequiredExecutionEnvironment: JavaSE-11
 Require-Bundle: org.adempiere.base;bundle-version="9.0.0",
  org.adempiere.plugin.utils;bundle-version="9.0.0"
-Service-Component: OSGI-INF/*.xml
+Service-Component: OSGI-INF/*.xml,
+ OSGI-INF/ProcessFactory.xml
 Export-Package: org.tcf.model;
   uses:="org.compiere.util,
    org.compiere.model,
    org.eevolution.model,
-   org.compiere.process"
-Bundle-ActivationPolicy: lazy
+   org.compiere.process",
+ org.tcf.process
 Bundle-ClassPath: .
 Bundle-Vendor: TCF
 Import-Package: org.osgi.service.component.annotations;version="1.3.0"
+Bundle-ActivationPolicy: lazy
+Bundle-Activator: org.adempiere.plugin.utils.Incremental2PackActivator
