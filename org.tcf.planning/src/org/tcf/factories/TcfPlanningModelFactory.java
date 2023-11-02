@@ -10,6 +10,7 @@ import org.compiere.util.Env;
 import org.tcf.model.MPlanning;
 import org.tcf.model.MPlanningLine;
 import org.tcf.model.MPlanningLineMA;
+import org.tcf.model.MProdNew;
 //import org.tcf.process.PlanningCreate;
 
 public class TcfPlanningModelFactory implements IModelFactory {
@@ -25,6 +26,9 @@ public class TcfPlanningModelFactory implements IModelFactory {
 		}
 		if(tableName.equalsIgnoreCase(MPlanningLineMA.Table_Name)) {
 			return MPlanningLineMA.class;
+		}
+		if(tableName.equalsIgnoreCase(MProdNew.Table_Name)) {
+			return MProdNew.class;
 		}
 		return null;
 	}
@@ -43,6 +47,10 @@ public class TcfPlanningModelFactory implements IModelFactory {
 			return new MPlanningLineMA(Env.getCtx(),Record_ID,trxName);
  
 		}
+		if(tableName.equalsIgnoreCase(MProdNew.Table_Name)) {
+			return new MProdNew(Env.getCtx(),Record_ID,trxName);
+ 
+		}
 		return null;
 	}
 
@@ -57,6 +65,9 @@ public class TcfPlanningModelFactory implements IModelFactory {
 		}
 		if(tableName.equalsIgnoreCase(MPlanningLineMA.Table_Name)) {
 			return new MPlanningLineMA(Env.getCtx(),rs,trxName);
+		}
+		if(tableName.equalsIgnoreCase(MProdNew.Table_Name)) {
+			return new MProdNew(Env.getCtx(),rs,trxName);
 		}
 		return null;
 	}
