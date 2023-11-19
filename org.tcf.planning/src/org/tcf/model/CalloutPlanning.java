@@ -27,14 +27,20 @@ public class CalloutPlanning extends CalloutEngine{
 			mTab.setValue("M_Locator_ID", Integer.valueOf(planning.getM_Locator_ID()));
 			mTab.setValue("M_Product_ID", Integer.valueOf(planning.getM_Product_ID()));
 			mTab.setValue("ProductionPlanQty", planning.getProductionPlanQty());
+			mTab.setValue("RemainQtyProduction",planning.getRemainQtyProduction());
 			mTab.setValue("PP_Product_BOM_ID", planning.getPP_Product_BOM_ID());
 		}
 		return "";
 	}
 	
-//	public String product (Properties ctx, int WindowNo,GridTab mTab, GridField mField,Object value) {
-//		Integer M_Planning_ID = (Integer)value;
-//		
-//		return "";
-//	}
+	public String productionPlanQty (Properties ctx, int WindowNo,GridTab mTab, GridField mField,Object value) {
+		
+		Integer ProductionPlanQty = (Integer)value;
+		Integer ProductionQty = (Integer)value;
+		
+		if(ProductionPlanQty == 0 || ProductionPlanQty.intValue()==0) {
+			return "";
+		}
+		return "";
+	}
 }

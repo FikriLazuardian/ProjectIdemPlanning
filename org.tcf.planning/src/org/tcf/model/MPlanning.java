@@ -138,6 +138,15 @@ public class MPlanning extends X_M_Planning implements DocAction{
 			List<MPlanningProduct> plans = planQuery.setParameters(getM_Planning_ID()).list();
 			for(MPlanningProduct plan : plans) {
 				MPlanningLine[] lines = plan.getLines();
+				for (MPlanningLine line : lines) {
+					if(!line.isEndProduct()) {
+						BigDecimal onHand = MStorageOnHand.getQtyOnHandForLocator(line.getM_Product_ID(), line.getM_Locator_ID(), 0, get_TrxName());
+						if(onHand.compareTo(line.getPlannedQty()) < 0) {
+							m_processMsg = "Quantity of "+line.getM_Product().getName()+" is not available";
+							return DocAction.STATUS_Invalid;
+						}
+					}
+				}
 				
 				//Check if End Product in Production Lines exist
 				if(!isHaveEndProduct(lines)) {
